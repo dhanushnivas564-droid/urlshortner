@@ -2,9 +2,10 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import { nanoid } from "nanoid";
-import Url from "./models/Url.js";
+import Url from "./models/url.js";
 import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
+import path from "path";
 
 const env = process.env.NODE_ENV || 'development';
 
