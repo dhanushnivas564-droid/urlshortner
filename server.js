@@ -43,10 +43,12 @@ const swaggerOptions = {
 };
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use(express.static(path.join(__dirname, '')));
+
 
 // Root route
 app.get("/", (req, res) => {
-  res.send("URL Shortener API is running. Visit /api-docs for Swagger UI.");
+  res.sendFile(path.join(__dirname, 'index.html'))
 });
 
 // POST /shorten - create short URL
