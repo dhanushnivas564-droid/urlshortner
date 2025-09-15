@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>URL Shortener</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      background: #f9f9f9;
+      text-align: center;
+    }
+    h1 {
+      color: #333;
+    }
+    input {
+      padding: 10px;
+      width: 300px;
+      margin-right: 10px;
+    }
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+    #shortenBtn {
+      background: #4CAF50;
+      color: white;
+    }
+    #historyBtn {
+      background: #2196F3;
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      font-size: 18px;
+      padding: 0;
+    }
+    table {
+      width: 80%;
+      margin: 20px auto;
+      border-collapse: collapse;
+      display: none; /* hidden by default */
+      background: white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    table, th, td {
+      border: 1px solid #aaa;
+    }
+    th {
+      background: #f2f2f2;
+    }
+    th, td {
+      padding: 10px;
+      text-align: center;
+    }
+    #result {
+      margin-top: 15px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔗 URL Shortener</h1>
+
+  <input type="text" id="urlInput" placeholder="Enter a URL to shorten" />
+  <button id="shortenBtn">Shorten</button>
+  <button id="historyBtn">H</button>
+
+  <p id="result"></p>
+
+  <table id="historyTable">
+    <thead>
+      <tr>
+        <th>Original URL</th>
+        <th>Short URL</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody id="historyBody"></tbody>
+  </table>
+
+  <script>
+    const shortenBtn = document.getElementById("shortenBtn");
+    const historyBtn = document.getElementById("historyBtn");
+    const result = document.getElementById("result");
+    const historyTable = document.getElementById("historyTable");
+    const historyBody = document.getElementById("historyBody");
+
+    // Shorten URL
+    shortenBtn.addEventListener("click", async () => {
+      const url = document.getElementById("urlInput").value;
+      if (!url) {
+        alert("Please enter a URL");
+        return;
+      }
+
+      try {
+        const res = await fetch("/shorten", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await res.json();
+        if (data.shortUrl) {
+          result.innerHTML = `✅ Shortened URL: <a href="${data.shortUrl}" target="_blank">${data.shortUrl}</a>`;
+        } else {
+          result.textContent = "❌ Failed to shorten URL";
+        }
+      } catch (err) {
+        console.error(err);
+        result.textContent = "⚠️ Server error";
+      }
+    });
+
+    // Toggle History table on "H" button click
+    historyBtn.addEventListener("click", async () => {
+      if (historyTable.style.display === "none") {
+        const res = await fetch("/history");
+        const data = await res.json();
+
+        historyBody.innerHTML = "";
+        data.forEach(entry => {
+          const row = `<tr>
+            <td><a href="${entry.originalUrl}" target="_blank">${entry.originalUrl}</a></td>
+            <td><a href="${entry.shortUrl}" target="_blank">${entry.shortUrl}</a></td>
+            <td>${new Date(entry.date).toLocaleString()}</td>
+          </tr>`;
+          historyBody.innerHTML += row;
+        });
+
+        historyTable.style.display = "table";
+      } else {
+        historyTable.style.display = "none";
+      }
+    });
+  </script>
+</body>
+</html>
