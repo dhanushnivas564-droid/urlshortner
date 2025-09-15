@@ -1,31 +1,25 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const { nanoid } = require("nanoid");
-const swaggerUi = require("swagger-ui-express");
-const swaggerJsdoc = require("swagger-jsdoc");
+import express from "express";
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+import { nanoid } from "nanoid";
+import Url from "./models/Url.js";
+import swaggerUi from "swagger-ui-express";
+import swaggerJsdoc from "swagger-jsdoc";
+
+dotenv.config();
 
 const app = express();
-const PORT = 5004;
+const PORT = process.env.PORT || 5000;
 
-// Middleware
 app.use(express.json());
-app.use(cors());
-app.use(express.static("public")); // serve index.html
 
 // MongoDB connection
-mongoose.connect("mongodb://127.0.0.1:27017/urlshortener", {
+mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-
-// Schema
-const urlSchema = new mongoose.Schema({
-  originalUrl: String,
-  shortUrl: String,
-  date: { type: Date, default: Date.now },
-});
-const Url = mongoose.model("Url", urlSchema);
+  useUnifiedTopology: true
+})
+.then(() => console.log("MongoDB connected"))
+.catch(err => console.error("MongoDB connection error:", err));
 
 // Swagger setup
 const swaggerOptions = {
@@ -34,20 +28,27 @@ const swaggerOptions = {
     info: {
       title: "URL Shortener API",
       version: "1.0.0",
-      description: "API for shortening URLs and viewing history",
+      description: "A simple URL Shortener API"
     },
-    servers: [{ url: `http://localhost:${PORT}` }],
+    servers: [{ url: `http://localhost:${PORT}` }]
   },
-  apis: ["./server.js"], // docs from comments
+  apis: ["./server.js"]
 };
-const swaggerDocs = swaggerJsdoc(swaggerOptions);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+// Root route
+app.get("/", (req, res) => {
+  res.send("URL Shortener API is running. Visit /api-docs for Swagger UI.");
+});
+
+// POST /shorten - create short URL
 /**
  * @swagger
  * /shorten:
  *   post:
  *     summary: Shorten a URL
+ *     tags: [URL]
  *     requestBody:
  *       required: true
  *       content:
@@ -57,63 +58,71 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
  *             properties:
  *               url:
  *                 type: string
- *                 example: https://example.com
+ *                 description: Original URL to shorten
  *     responses:
  *       200:
- *         description: Shortened URL
+ *         description: Shortened URL created
+ *       400:
+ *         description: URL is required
+ *       500:
+ *         description: Server error
  */
 app.post("/shorten", async (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: "URL is required" });
 
-  const shortId = nanoid(6);
-  const shortUrl = `http://localhost:${PORT}/${shortId}`;
+  try {
+    const shortId = nanoid(8);
+    const shortUrl = `${process.env.BASE_URL}:${PORT}/${shortId}`;
+    const newUrl = new Url({ originalUrl: url, shortUrl });
+    await newUrl.save();
 
-  const newUrl = new Url({ originalUrl: url, shortUrl });
-  await newUrl.save();
-
-  res.json({ shortUrl });
+    res.json({ originalUrl: url, shortUrl });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
-/**
- * @swagger
- * /history:
- *   get:
- *     summary: Get all shortened URLs history
- *     responses:
- *       200:
- *         description: List of URLs
- */
-app.get("/history", async (req, res) => {
-  const urls = await Url.find().sort({ date: -1 });
-  res.json(urls);
-});
-
+// GET /:shortId - redirect to original URL
 /**
  * @swagger
  * /{shortId}:
  *   get:
- *     summary: Redirect to original URL
+ *     summary: Redirect short URL to original URL
+ *     tags: [URL]
  *     parameters:
  *       - in: path
  *         name: shortId
- *         required: true
  *         schema:
  *           type: string
+ *         required: true
+ *         description: Short ID of the URL
  *     responses:
  *       302:
  *         description: Redirects to original URL
+ *       404:
+ *         description: URL not found
  */
 app.get("/:shortId", async (req, res) => {
-  const shortUrl = `http://localhost:${PORT}/${req.params.shortId}`;
-  const entry = await Url.findOne({ shortUrl });
+  const { shortId } = req.params;
+  const fullShortUrl = `${process.env.BASE_URL}:${PORT}/${shortId}`;
 
-  if (entry) {
-    res.redirect(entry.originalUrl);
-  } else {
-    res.status(404).json({ error: "Short URL not found" });
+  try {
+    const urlDoc = await Url.findOne({ shortUrl: fullShortUrl });
+    if (urlDoc) {
+      res.redirect(urlDoc.originalUrl);
+    } else {
+      res.status(404).json({ error: "URL not found" });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
 // Start server
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Swagger docs available at http://localhost:${PORT}/api-docs`);
+});
